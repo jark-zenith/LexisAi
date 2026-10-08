@@ -1,0 +1,6 @@
+{
+  "name": "LexisAi",
+  "description": "LexisAi: Quickly rewrite, summarize, improve grammar, adjust tone, and generate text for emails, messages, and professional communication.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
