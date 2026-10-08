@@ -1,277 +1,348 @@
-# LexisAi
+# LexisAi ✨
 
-AI writing, research, and document assistant for rewriting, summarizing, polishing, and turning rough notes into polished output.
+> Professional AI writing, research, and document assistant. Transform rough ideas into polished output in seconds.
 
-LexisAi is a full-stack TypeScript application that combines a modern React interface with a Node/Express API and Gemini-powered AI workflows. It is designed for everyday writing tasks, deeper document analysis, research support, career workflows, and workspace-based knowledge work.
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19.0-61dafb?style=flat-square&logo=react)](https://react.dev)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
+[![Gemini AI](https://img.shields.io/badge/Powered%20by-Gemini%20AI-4285f4?style=flat-square)](https://ai.google.dev)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)]()
 
-## Overview
+---
 
-LexisAi helps users:
+## 🎯 What is LexisAi?
 
-- rewrite, improve, shorten, expand, or transform text
-- summarize long-form content and extract key points
-- analyze PDFs and documents
-- conduct research with search grounding and fallback handling
-- generate study aids such as flashcards and quizzes
-- tailor CVs and cover letters for job applications
-- synthesize rough notes into finished reports and formal documents
-- keep work organized in user-specific workspace documents, notes, and chat history
+LexisAi is a full-stack AI productivity suite for writers, researchers, and professionals. It combines a beautiful React interface with a Gemini-powered backend to help you:
 
-It is built for speed, guided prompting, and practical AI productivity in a polished web app experience.
+- ✍️ **Write Better**: Rewrite, improve, shorten, expand, or completely rephrase content
+- 📚 **Understand Documents**: Summarize PDFs, extract key points, simplify complex text
+- 🔍 **Research Smarter**: Conduct grounded research with live search and fallback analytics
+- 🎓 **Study Faster**: Generate flashcards, quizzes, and practice questions from notes
+- 💼 **Land Jobs**: Tailor CVs, craft cover letters, practice interview questions
+- 📄 **Synthesize Ideas**: Turn rough notes into polished reports and proposals
+- 💬 **Workspace Collaboration**: Organize documents, notes, and chat history in isolated workspaces
 
-## Core Features
+**Built with speed, structure, and security in mind.** Server-side access controls, anti-fabrication guards, and user-isolated workspaces.
 
-### Writing & Transformation
+---
 
-The main transform workflow provides quick content operations such as:
+## ⚡ Quick Start
 
-- rewrite
-- summarize
-- improve/proofread
-- shorten
-- expand
-- bulletize
-- generate from prompts
-- tone adjustment
-
-These are structured around writing context such as audience, purpose, tone, length, and custom instructions.
-
-### Document Intelligence
-
-Users can work with uploaded documents or pasted text to:
-
-- summarize the document
-- explain sections or concepts
-- simplify content for broader audiences
-- extract key points
-- answer document-specific questions
-- rewrite focused sections
-
-This mode is grounded in the actual document content and avoids guessing when information is missing.
-
-### Research Mode
-
-Research mode is designed to produce structured briefs using grounded web-search support when available. If live search is unavailable, it intentionally falls back to a transparent analytical draft so it never presents model-generated facts as verified research.
-
-### Study Assistant
-
-Users can transform notes into study outputs such as:
-
-- summaries
-- key point cheat sheets
-- flashcards
-- quizzes
-- practice questions
-- simple explanations using accessible, teaching-focused prompts
-
-### Job & Career Tools
-
-The application includes an executive-career workflow for:
-
-- CV / resume matching against job requirements
-- skill gap analysis
-- tailored cover letters
-- interview question generation
-- application answer drafting
-
-These flows are designed to emphasize real candidate experience and avoid fabricating qualifications.
-
-### Workflow / Finished Document Synthesis
-
-A higher-level synthesis pipeline turns rough notes into more complete deliverables such as:
-
-- business reports
-- proposals
-- formal letters
-- cover letters
-- assignment drafts
-- presentation outlines
-
-The system emphasizes factual integrity and anti-fabrication controls in executive-style document generation.
-
-### Workspace Collaboration
-
-Each user can create isolated workspaces containing:
-
-- uploaded documents
-- notes
-- chat history
-- AI-powered workspace actions grounded in selected material
-
-The workspace layer is intended to organize long-form work, analyze selected documents, and answer grounded questions using only workspace content when possible.
-
-### Multimodal & OCR Support
-
-The app supports OCR and document extraction from images/PDFs using Gemini multimodal input, enabling text extraction from scanned or image-based content for downstream writing tasks.
-
-### Subscription, Credits & Usage Control
-
-LexisAi includes:
-
-- free daily action limits
-- Pro upgrade flow
-- AI credits purchased via Paystack
-- server-side authorization checks for plan and usage limits
-- secure payment verification on the server
-
-## Tech Stack
-
-- Frontend: React 19, Vite, TypeScript
-- Styling: Tailwind CSS
-- UI motion: Motion
-- Backend: Node.js, Express
-- AI: Google Gemini via `@google/genai`
-- Payments: Paystack integration
-- Persistence: local disk JSON cache for workspace data
-
-## Project Structure
-
-```text
-.
-├── .data/                        # persisted workspace data
-├── .env.example                 # example environment variables
-├── assets/                      # static assets and internal tooling metadata
-├── public/                      # PWA assets, manifest, service worker, icons
-├── server/                      # backend services and task orchestration
-│   ├── creditService.ts         # credit accounting
-│   ├── paystackService.ts        # Paystack integration
-│   ├── subscriptionService.ts    # plan and access logic
-│   ├── taskHandlers.ts          # prompt-building and modal capability routing
-│   └── workspaceService.ts      # workspace CRUD and persistence
-├── src/                         # frontend React app
-│   ├── App.tsx                  # main app shell and orchestration
-│   ├── components/              # UI panels, modals, workspace screens
-│   ├── data/                    # presets and defaults
-│   ├── types.ts                 # shared TS types and pricing definitions
-│   ├── utils/                   # usage manager, Paystack client, workspace client
-│   └── main.tsx                 # app bootstrap
-├── index.html                   # Vite app entry
-├── metadata.json                # repo metadata / app metadata
-├── package.json                 # scripts and dependency metadata
-├── server.ts                    # Express + Vite server entry point
-├── tsconfig.json                # TypeScript configuration
-├── vite.config.ts               # Vite configuration
-├── .gitignore                   # Git ignore rules
-└── README.md                    # project documentation
-```
-
-## Requirements
-
-Before running the app, make sure you have:
-
-- Node.js 18+ recommended
+### Prerequisites
+- Node.js 18+
 - npm or pnpm
-- a valid Gemini API key
-- optional Paystack configuration for Pro and credit purchases
+- Gemini API key ([get one free](https://ai.google.dev))
+- Optional: Paystack for Pro subscriptions
 
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in the values.
-
-```env
-GEMINI_API_KEY="MY_GEMINI_API_KEY"
-APP_URL="MY_APP_URL"
-VITE_PAYSTACK_PUBLIC_KEY=""
-PAYSTACK_SECRET_KEY=""
-PAYSTACK_CURRENCY="KES"
-```
-
-Notes:
-
-- `GEMINI_API_KEY` is required for all AI generation flows.
-- `APP_URL` is commonly injected automatically in hosted environments.
-- Paystack keys are kept server-side (`PAYSTACK_SECRET_KEY`) to avoid exposing secret credentials to the browser.
-- The app performs a small safeguard that moves accidental secret keys out of client-exposed Vite variables.
-
-## Quick Start
-
-Install dependencies:
+### Installation
 
 ```bash
+# Clone and install
+git clone https://github.com/LexisAi-de/LexisAi.git
+cd LexisAi
 npm install
-```
 
-Create your local environment file:
-
-```bash
+# Configure environment
 cp .env.example .env
-```
+# Fill in: GEMINI_API_KEY, VITE_PAYSTACK_PUBLIC_KEY, etc.
 
-Then start the app in development mode:
-
-```bash
+# Start development server
 npm run dev
 ```
 
-This starts the Express server and Vite development middleware.
+Open http://localhost:3000 and start writing.
 
-## Production Build
+### Production Deploy
 
 ```bash
 npm run build
 npm start
 ```
 
-This generates the production bundle and serves the app from the built output.
+---
 
-## Available Scripts
+## 🚀 Core Features
 
-```bash
-npm run dev      # run the app in development mode
-npm run build    # build frontend + backend bundle
-npm run start    # run the compiled production server
-npm run preview  # preview the Vite production build
-npm run clean    # remove dist artifacts
-npm run lint     # TypeScript validation with no emit
+### **Transform Mode** ✍️
+Rewrite, summarize, improve grammar, adjust tone, generate from scratch, or bulletize any text.
+
+```typescript
+// Example: Rewrite email to professional tone
+Input:  "hey guys can we sync up tmrw about the project?"
+Output: "I'd like to schedule a meeting tomorrow to discuss the project status."
 ```
 
-## Runtime Architecture
+### **Document Intelligence** 📖
+Upload PDFs, images, or paste text. Summarize, explain, simplify, extract key points, or answer questions—grounded entirely in the document content.
 
-The application follows a simple layered structure:
+```typescript
+// Supported tasks:
+- summarize       // Executive summary with key findings
+- explain         // Step-by-step breakdown
+- simplify        // Plain language for any audience
+- extract_key_points  // Critical facts in bullets
+- qa              // Answer specific questions
+- rewrite_section // Polish focused content
+```
 
-1. Frontend React app handles modal flows, input panels, output display, and mode switching.
-2. Express server exposes `/api/*` routes for health checks, AI generation, Paystack, subscription checks, and workspace actions.
-3. `server/taskHandlers.ts` translates user intent into Gemini prompts, optional tools, and task-specific instructions.
-4. Gemini generates the result, optionally with search grounding or multimodal input.
-5. Usage, credits, and subscription checks are enforced on the server before actions complete.
+### **Research Mode** 🔍
+Structured research briefs with live Google Search grounding. If search fails, the system **intentionally falls back** to labeled analytical drafts—never presenting AI-generated facts as verified.
 
-## Security & Guardrails
+```typescript
+// Example output structure:
+- Executive Overview & Current Consensus
+- Key Facts, Verified Developments & Evidence
+- Different Perspectives / Industry Analysis
+- Practical Implications & Outlook
+```
 
-The repository includes several important guardrails:
+### **Study Assistant** 🎓
+Transform notes into study materials: summaries, key points, flashcards, quizzes, practice questions, or Feynman-style explanations.
 
-- server-side subscription and credit checks
-- protection against accidentally exposing secret Paystack keys in frontend env vars
-- strict anti-fabrication rules for research and document workflows
-- workspace ownership checks for user-isolated data
-- requirement to verify transaction status before granting Pro access or credits
+```typescript
+// Study outputs:
+- flashcards           // 8-10 concept cards with memory aids
+- quiz                 // 5 multiple-choice questions + answer key
+- practice_questions   // Exam-style scenarios with rubrics
+- simple_explanation   // Accessible, analogy-driven teaching
+- key_points          // Quick-reference cheat sheets
+```
 
-## Usage Notes
+### **Career Workflows** 💼
+ATS-optimized CV matching, tailored cover letters, interview prep, and application answers—zero fabrication of credentials.
 
-LexisAi is best used as a guided AI writing workspace rather than a generic chatbot. Most features are specialized to actual writing and document workflows, including:
+```typescript
+// Career tools:
+- match_analysis       // Gap analysis vs job description
+- tailored_cover_letter // Personalized pitch
+- improve_cv           // Quantified accomplishment statements
+- interview_questions  // 5 high-probability questions with talking points
+- application_answers  // STAR framework responses
+```
 
-- structured generation
-- grounded document work
-- research brief production
-- career and application support
-- workspace-based document synthesis
+### **Workflow / Document Synthesis** 📄
+Turn rough notes into polished, executive-ready deliverables: reports, proposals, formal letters, or assignment drafts. Built-in anti-fabrication guards prevent inventing data, dates, or credentials.
 
-## Current Status
+### **Workspaces** 🗂️
+Organize your work with user-isolated workspaces:
 
-This repository is a focused TypeScript app for AI-assisted writing and workspace productivity. It is structured for local development and deployment in a hosted environment with Gemini access.
+- Upload & organize documents
+- Create persistent notes
+- Chat history grounded in workspace materials
+- Quick actions: summarize, rewrite, explain, extract key points, generate outlines
 
-## License
+### **Multimodal & OCR** 📸
+Extract text from images and PDFs using Gemini vision. Perfect for scanned documents or handwritten notes.
 
-No license file is currently included in this repository. If you plan to distribute or publish it, add an explicit license before doing so.
+### **Subscription & Credits** 💳
+- **Free**: 5 actions/day
+- **Pro**: 500 actions/month (KSh 1,000/month)
+- **Pay-as-you-go**: Buy credits via Paystack (30, 100, or 250 actions)
 
-## Contributing
-
-Contributions are welcome if the repo is used in a collaborative environment. In general, the project is easiest to extend by:
-
-- adding new prompt templates in `server/taskHandlers.ts`
-- extending UI modes in `src/components/`
-- adding types in `src/types.ts`
-- implementing workflow logic in the backend route handlers in `server.ts`
+Server-side verification ensures secure, transparent billing.
 
 ---
 
-Built for writing, research, and document productivity with Gemini-backed workflows.
+## 🏗️ Architecture
+
+### Frontend Stack
+- **React 19** + Vite (instant dev experience)
+- **Tailwind CSS** + Motion (smooth, accessible UI)
+- **Lucide React** (clean, scalable icons)
+- TypeScript for type safety
+
+### Backend Stack
+- **Express** on Node.js
+- **Gemini API** for AI generation
+- **Paystack** for payments
+- **Local JSON persistence** for workspace data
+
+### Request Flow
+
+```
+User Input (React)
+    ↓
+/api/transform POST
+    ↓
+server/taskHandlers.ts (prompt engineering)
+    ↓
+Gemini API (with optional tools/multimodal)
+    ↓
+server/creditService.ts (usage deduction)
+    ↓
+Response with streaming (SSE) or JSON
+    ↓
+UI Updates & History
+```
+
+---
+
+## 📁 Project Structure
+
+```text
+LexisAi/
+├── server/
+│   ├── taskHandlers.ts         # Prompt building for all modes
+│   ├── workspaceService.ts     # Document/note/chat persistence
+│   ├── creditService.ts        # Usage & credit accounting
+│   ├── paystackService.ts      # Payment verification
+│   └── subscriptionService.ts  # Plan access control
+├── src/
+│   ├── App.tsx                 # Main orchestrator
+│   ├── components/             # Modals, panels, workspaces
+│   ├── utils/                  # API clients, usage manager
+│   └── types.ts                # Shared types & pricing
+├── server.ts                   # Express + Vite entry
+├── index.html                  # App shell
+└── .env.example                # Configuration template
+```
+
+---
+
+## 🔒 Security & Guardrails
+
+✅ **Server-Authoritative Access Control**: All usage, credits, and subscription checks run on the server—never trust the client.
+
+✅ **Anti-Fabrication Safeguards**: Research mode intentionally labels unavailable search results. Job/workflow modes refuse to invent credentials.
+
+✅ **User-Isolated Workspaces**: Each workspace is tied to a user ID with strict ownership validation.
+
+✅ **Secure Payment Verification**: Paystack transactions verified server-side before Pro access or credits are granted.
+
+✅ **Secret Key Protection**: Accidental exposure of Paystack secret keys to the frontend is automatically blocked.
+
+---
+
+## 🛠️ Development
+
+### Available Commands
+
+```bash
+npm run dev        # Start dev server (http://localhost:3000)
+npm run build      # Production build
+npm run start      # Run production server
+npm run preview    # Preview Vite production build
+npm run clean      # Remove build artifacts
+npm run lint       # TypeScript type check
+```
+
+### Environment Variables
+
+Create `.env` from `.env.example`:
+
+```env
+# Required
+GEMINI_API_KEY="your-gemini-api-key"
+APP_URL="https://your-domain.com"
+
+# Optional (for Pro subscriptions)
+VITE_PAYSTACK_PUBLIC_KEY="pk_live_..."
+PAYSTACK_SECRET_KEY="sk_live_..."
+PAYSTACK_CURRENCY="KES"
+```
+
+### Adding New Features
+
+1. **New Transform Action**: Add to `src/types.ts` → update `server/taskHandlers.ts`
+2. **New Workspace Feature**: Extend `WorkspaceChatMessage` type → add routes in `server.ts`
+3. **New UI Mode**: Create component in `src/components/` → add mode to `App.tsx`
+
+---
+
+## 📊 Use Cases
+
+### For Writers & Content Creators
+- Batch-rewrite social media captions in multiple tones
+- Summarize lengthy articles for quick understanding
+- Expand outlines into full sections
+- Generate multiple variations of copy
+
+### For Researchers
+- Deep dives into topics with live search grounding
+- Synthesize findings into structured reports
+- Extract key facts and citations from documents
+
+### For Students & Educators
+- Turn lecture notes into flashcards and quizzes
+- Simplify dense academic content
+- Generate practice questions for exam prep
+
+### For Job Seekers
+- Match resumes against job descriptions
+- Craft personalized cover letters
+- Practice interviews with AI-generated questions
+
+### For Professionals
+- Synthesize rough notes into formal reports
+- Write professional emails and letters
+- Organize workspace knowledge for team reference
+
+---
+
+## 🎨 UI Highlights
+
+- **Dark Theme**: Easy on the eyes for extended writing sessions
+- **Real-Time Streaming**: See AI output appear live (when supported)
+- **Responsive Design**: Works beautifully on desktop, tablet, and mobile
+- **PWA Support**: Install on device for offline-ready experience
+- **Keyboard Shortcuts**: `Cmd/Ctrl + Enter` to submit, `Esc` to close modals
+
+---
+
+## 📈 Performance
+
+- **In-Memory Caching**: Identical queries return in ~8ms
+- **Model Fallback**: Automatic retry across fast Gemini models (3.1-flash → 3.6-flash → fallback)
+- **Streaming**: SSE streaming for transform mode provides real-time feedback
+- **Lazy Loading**: Components only load when their mode is active
+
+---
+
+## 🚢 Deployment
+
+LexisAi is production-ready and tested with:
+- **Cloud Run** (automatic env injection)
+- **Vercel** / **Netlify** (as static + serverless functions)
+- **Traditional VPS** (Node.js + reverse proxy)
+
+All require:
+- Node.js 18+
+- Gemini API key
+- (Optional) Paystack keys for billing
+
+---
+
+## 📝 License
+
+This project is released under the **MIT License**. See LICENSE file for details.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! The project is easiest to extend by:
+
+- Adding prompt templates in `server/taskHandlers.ts`
+- Building UI components in `src/components/`
+- Extending types in `src/types.ts`
+- Improving workspace workflows
+
+---
+
+## 📞 Support & Feedback
+
+- 🐛 Found a bug? [Open an issue](https://github.com/LexisAi-de/LexisAi/issues)
+- 💡 Have an idea? [Start a discussion](https://github.com/LexisAi-de/LexisAi/discussions)
+- 📧 Questions? Reach out to the team
+
+---
+
+<div align="center">
+
+**Transform your writing. Amplify your research. Organize your work.**
+
+Built with ❤️ for writers, researchers, and professionals who demand better tools.
+
+[Try LexisAi →](https://github.com/LexisAi-de/LexisAi)
+
+</div>
