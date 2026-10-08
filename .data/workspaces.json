@@ -1,1 +1,116 @@
-[]
+[
+  {
+    "id": "ws_1791492734385_wpd8i8r",
+    "userId": "usr_1791492734201_61d56f80cb80",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791492734385,
+    "updatedAt": 1791492734385,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791492759282_opw59nx",
+    "userId": "usr_1791492758916_c9a1957bb532",
+    "name": "Alice Confidential Research",
+    "description": "Private financial and proprietary data",
+    "createdAt": 1791492759282,
+    "updatedAt": 1791492759283,
+    "documents": [
+      {
+        "id": "doc_1791492759283_q0div86",
+        "name": "Alice_Confidential_Brief.pdf",
+        "size": 1024,
+        "type": "application/pdf",
+        "extractedText": "Secret company quarterly forecast: Revenue increased by 40%.",
+        "wordCount": 8,
+        "status": "ready",
+        "uploadedAt": 1791492759283
+      }
+    ],
+    "notes": [
+      {
+        "id": "note_1791492759283_yk3mwxh",
+        "title": "Alice Private Strategy",
+        "content": "Key roadmap milestones for Q4.",
+        "createdAt": 1791492759283,
+        "updatedAt": 1791492759283
+      }
+    ],
+    "chatHistory": [
+      {
+        "id": "msg_1",
+        "role": "user",
+        "content": "What does my confidential brief say?",
+        "timestamp": 1791492759283
+      }
+    ]
+  },
+  {
+    "id": "ws_1791492779629_mqxud8g",
+    "userId": "usr_1791492779454_7cc3719e59c1",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791492779629,
+    "updatedAt": 1791492779629,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791492786463_q9s4is1",
+    "userId": "usr_1791492786286_4325e3df5072",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791492786463,
+    "updatedAt": 1791492786463,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791492819188_3rsguq5",
+    "userId": "usr_1791492819012_0aae992070e5",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791492819188,
+    "updatedAt": 1791492819188,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791493619340_83znflj",
+    "userId": "usr_1791493619164_df380f5ee410",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791493619340,
+    "updatedAt": 1791493619340,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791493677645_12yk7se",
+    "userId": "usr_1791493677470_4c7993edf7ac",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791493677645,
+    "updatedAt": 1791493677645,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791494523645_jjhtgur",
+    "userId": "usr_1791494523478_5f5157bc4174",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791494523645,
+    "updatedAt": 1791494523645,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  }
+]

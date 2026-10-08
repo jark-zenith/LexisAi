@@ -23,18 +23,46 @@ import { getUserCredits } from "./creditService";
 // In-memory server subscription store (in production this maps to a PostgreSQL / Firestore database)
 const subscriptionDatabase = new Map<string, ServerSubscriptionRecord>();
 
+import { resolveUserFromToken } from "./authService";
+
 /**
  * Generate a consistent fallback userId or read from request headers
  */
 export function resolveUserIdFromRequest(req: any): string {
-  const headerUserId = req.headers["x-lexis-user-id"] || req.headers["x-user-id"];
-  if (typeof headerUserId === "string" && headerUserId.trim()) {
-    return headerUserId.trim();
+  // 1. Authoritative resolved user from requireAuth or optionalAuth
+  if (req.userId && typeof req.userId === "string") {
+    return req.userId;
   }
-  // Fallback to client IP or default guest identity for single-user dev testing
-  const forwarded = req.headers["x-forwarded-for"];
+  if (req.user && typeof req.user.id === "string") {
+    return req.user.id;
+  }
+
+  // 2. Extract and verify session token if present
+  const authHeader = req.headers?.authorization;
+  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7).trim();
+    const verifiedUser = resolveUserFromToken(token);
+    if (verifiedUser) {
+      req.userId = verifiedUser.id;
+      req.user = verifiedUser;
+      return verifiedUser.id;
+    }
+  }
+
+  const customToken = req.headers?.["x-auth-token"];
+  if (typeof customToken === "string" && customToken.trim()) {
+    const verifiedUser = resolveUserFromToken(customToken.trim());
+    if (verifiedUser) {
+      req.userId = verifiedUser.id;
+      req.user = verifiedUser;
+      return verifiedUser.id;
+    }
+  }
+
+  // Fallback to client IP or default guest identity for public playground only
+  const forwarded = req.headers?.["x-forwarded-for"];
   const ip = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket?.remoteAddress;
-  return ip ? `user_${Buffer.from(ip).toString("hex").slice(0, 12)}` : "guest_user";
+  return ip ? `guest_${Buffer.from(ip).toString("hex").slice(0, 10)}` : "guest_user";
 }
 
 /**
@@ -208,4 +236,11 @@ export function activateProSubscription(
 
   subscriptionDatabase.set(userId, newRecord);
   return newRecord;
+}
+
+/**
+ * Permanently purge subscription records for a deleted user
+ */
+export function purgeUserSubscription(userId: string): void {
+  subscriptionDatabase.delete(userId);
 }

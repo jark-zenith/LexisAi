@@ -356,3 +356,39 @@ export function clearWorkspaceChatHistory(
 
   return ws;
 }
+
+/**
+ * Permanently purge all workspaces and associated resources for a deleted user
+ */
+export function purgeUserWorkspaces(userId: string): number {
+  let count = 0;
+  for (const [id, ws] of workspacesMap.entries()) {
+    if (ws.userId === userId) {
+      workspacesMap.delete(id);
+      count++;
+    }
+  }
+  if (count > 0) {
+    persistWorkspaces();
+  }
+  return count;
+}
+
+/**
+ * Safely migrate guest workspaces to authenticated user upon explicit request
+ */
+export function claimGuestWorkspaces(guestId: string, authenticatedUserId: string): number {
+  if (!guestId || !authenticatedUserId || guestId === authenticatedUserId) return 0;
+  let migrated = 0;
+  for (const ws of workspacesMap.values()) {
+    if (ws.userId === guestId) {
+      ws.userId = authenticatedUserId;
+      ws.updatedAt = Date.now();
+      migrated++;
+    }
+  }
+  if (migrated > 0) {
+    persistWorkspaces();
+  }
+  return migrated;
+}

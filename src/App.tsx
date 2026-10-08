@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Header } from "./components/Header";
+import { AppSidebar } from "./components/layout/AppSidebar";
+import { TopHeader } from "./components/layout/TopHeader";
+import { MobileNavigation } from "./components/layout/MobileNavigation";
 import { QuickPills } from "./components/QuickPills";
 import { InputPanel } from "./components/InputPanel";
 import { OutputPanel } from "./components/OutputPanel";
@@ -10,7 +12,6 @@ import { AssetPickerModal } from "./components/AssetPickerModal";
 import { AssetPreviewModal } from "./components/AssetPreviewModal";
 import { ToastContainer, ToastMessage } from "./components/Toast";
 import { UpgradeModal } from "./components/UpgradeModal";
-import { ModeSwitcher } from "./components/ModeSwitcher";
 import { DocumentModePanel } from "./components/DocumentModePanel";
 import { ResearchModePanel } from "./components/ResearchModePanel";
 import { StudyModePanel } from "./components/StudyModePanel";
@@ -55,9 +56,16 @@ import {
   updateWorkspaceApi,
   deleteWorkspaceApi,
 } from "./utils/workspaceClient";
-import { Heart } from "lucide-react";
+import { Heart, Lock, LogIn, UserPlus, Shield } from "lucide-react";
+import { useAuth } from "./context/AuthContext";
+import { AuthModal } from "./components/auth/AuthModal";
+import { AccountSettingsModal } from "./components/auth/AccountSettingsModal";
+import { TermsModal } from "./components/auth/TermsModal";
+import { getAuthHeaders } from "./utils/authClient";
 
 export default function App() {
+  const { isAuthenticated, user, openAuthModal } = useAuth();
+
   // Mode selection state
   const [currentMode, setCurrentMode] = useState<LexisMode>("transform");
 
@@ -106,6 +114,26 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
+  // Responsive Layout & Sidebar States
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("lexis_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("lexis_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const addToast = (message: string, type: "success" | "error" | "info" = "info") => {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, type, message }]);
@@ -149,10 +177,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (currentMode === "workspace" && !activeWorkspace) {
+    if (currentMode === "workspace" && !activeWorkspace && isAuthenticated) {
       loadWorkspaces();
     }
-  }, [currentMode, activeWorkspace, loadWorkspaces]);
+  }, [currentMode, activeWorkspace, isAuthenticated, loadWorkspaces]);
 
   // PWA Install Prompt Listener
   useEffect(() => {
@@ -314,12 +342,11 @@ export default function App() {
 
         const response = await fetch("/api/transform", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+          headers: getAuthHeaders({
             "Accept": isStreamable ? "text/event-stream, application/json" : "application/json",
             "X-Lexis-User-Id": userId,
             "X-Usage-Count": String(usage.count),
-          },
+          }),
           signal: controller.signal,
           body: JSON.stringify({
             requestId,
@@ -683,12 +710,27 @@ export default function App() {
   }, [handleTransform, currentMode]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#09090b] text-slate-100 font-sans antialiased selection:bg-blue-600/30 selection:text-blue-200">
-      {/* Top Header */}
-      <Header
+    <div className="h-[100dvh] max-h-[100dvh] w-screen overflow-hidden flex flex-row bg-[#09090b] text-slate-100 font-sans antialiased selection:bg-blue-600/30 selection:text-blue-200">
+      {/* 1. Left Vertical Sidebar (Desktop Collapsible Rail + Mobile Slide-over Drawer) */}
+      <AppSidebar
+        currentMode={currentMode}
+        onSelectMode={(mode) => {
+          setCurrentMode(mode);
+          if (mode !== "workspace") {
+            setActiveWorkspace(null);
+          } else {
+            loadWorkspaces();
+          }
+        }}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapsed={handleToggleSidebar}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        onNewTask={handleNewTask}
         historyCount={history.length}
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        onOpenFeedback={() => setIsFeedbackOpen(true)}
         onOpenUpgrade={() => {
           setUpgradeModalTab("pro");
           setIsUpgradeModalOpen(true);
@@ -697,24 +739,15 @@ export default function App() {
           setUpgradeModalTab("credits");
           setIsUpgradeModalOpen(true);
         }}
-        onOpenWorkspace={() => {
-          setCurrentMode("workspace");
-          setActiveWorkspace(null);
-          loadWorkspaces();
-        }}
-        isWorkspaceActive={currentMode === "workspace"}
+        plan={userPlan}
         usageCount={usage.count}
         credits={credits}
-        plan={userPlan}
-        hasApiKey={hasApiKey}
-        canInstall={Boolean(deferredPrompt)}
-        onInstall={handleInstallApp}
       />
 
-      {/* Main Workspace Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-4">
-        {/* Capability Mode Switcher */}
-        <ModeSwitcher
+      {/* 2. Main Content Viewport */}
+      <div className="flex-1 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
+        {/* Compact Viewport Header */}
+        <TopHeader
           currentMode={currentMode}
           onSelectMode={(mode) => {
             setCurrentMode(mode);
@@ -724,11 +757,90 @@ export default function App() {
               loadWorkspaces();
             }
           }}
-          isLoading={isLoading}
+          activeWorkspace={activeWorkspace}
+          onBackToWorkspacesDashboard={() => {
+            setActiveWorkspace(null);
+            loadWorkspaces();
+          }}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          historyCount={history.length}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+          onOpenUpgrade={() => {
+            setUpgradeModalTab("pro");
+            setIsUpgradeModalOpen(true);
+          }}
+          onOpenCredits={() => {
+            setUpgradeModalTab("credits");
+            setIsUpgradeModalOpen(true);
+          }}
+          usageCount={usage.count}
+          credits={credits}
+          plan={userPlan}
+          hasApiKey={hasApiKey}
+          canInstall={Boolean(deferredPrompt)}
+          onInstall={handleInstallApp}
         />
 
-        {currentMode === "workspace" ? (
-          activeWorkspace ? (
+        {/* Scrollable Main Canvas Stage */}
+        <main className="flex-1 min-w-0 min-h-0 overflow-y-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-5 flex flex-col gap-4 pb-20 lg:pb-6">
+          <div className="w-full max-w-7xl mx-auto flex flex-col gap-4">
+            {currentMode === "workspace" ? (
+              !isAuthenticated ? (
+            <div className="max-w-2xl mx-auto my-10 p-8 rounded-3xl bg-[#0c0c0e] border border-slate-800 text-center space-y-6 shadow-2xl">
+              <div className="w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-950/50">
+                <Lock className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                  Private Workspaces Require Sign-In
+                </h2>
+                <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+                  Your workspaces, documents, notes, OCR extractions, and the Document Intelligence Agent are strictly encrypted and isolated to your authenticated account.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-xs text-slate-300 max-w-md mx-auto space-y-2 text-left">
+                <div className="flex items-center gap-2 font-semibold text-white">
+                  <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
+                  Cross-Account Isolation Guaranteed
+                </div>
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  The Document Intelligence Agent retrieves context strictly from documents that belong to your account. Sign in or create a free account to access your workspace.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => openAuthModal("signin")}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-950/60 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In to Your Account</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAuthModal("signup")}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Create Free Account</span>
+                </button>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentMode("transform")}
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                >
+                  &larr; Return to Public Writing Studio
+                </button>
+              </div>
+            </div>
+          ) : activeWorkspace ? (
             <WorkspaceDetail
               workspace={activeWorkspace}
               userPlan={userPlan}
@@ -1033,11 +1145,31 @@ export default function App() {
             </button>
             <span>&bull;</span>
             <span className="text-[11px] text-slate-500">
-              Pro Subscription: KSh 1,000 / 30 Days &bull; AI Credits Available
+              {userPlan === PlanType.PRO
+                ? "Pro Subscription Active (500 actions/mo)"
+                : "Free Plan (5 actions/day · Resets midnight)"}
             </span>
           </div>
         </div>
-      </main>
+          </div>
+        </main>
+
+        {/* Mobile Thumb Navigation Bar */}
+        <MobileNavigation
+          currentMode={currentMode}
+          onSelectMode={(mode) => {
+            setCurrentMode(mode);
+            if (mode !== "workspace") {
+              setActiveWorkspace(null);
+            } else {
+              loadWorkspaces();
+            }
+          }}
+          historyCount={history.length}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+          onOpenDrawer={() => setIsMobileSidebarOpen(true)}
+        />
+      </div>
 
       {/* Asset Picker Modal (Files, Documents & Camera OCR) */}
       <AssetPickerModal
@@ -1114,6 +1246,11 @@ export default function App() {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onCloseToast={removeToast} />
+
+      {/* Authentication & User Account Modals */}
+      <AuthModal />
+      <AccountSettingsModal />
+      <TermsModal />
     </div>
   );
 }

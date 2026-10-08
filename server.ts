@@ -45,7 +45,32 @@ import {
   deleteNoteFromWorkspace,
   appendChatMessageToWorkspace,
   clearWorkspaceChatHistory,
+  purgeUserWorkspaces,
+  claimGuestWorkspaces,
 } from "./server/workspaceService";
+import { purgeUserCredits } from "./server/creditService";
+import { purgeUserSubscription } from "./server/subscriptionService";
+import {
+  registerUser,
+  loginUser,
+  authenticateWithGoogle,
+  verifyUserEmail,
+  resendVerificationToken,
+  requestPasswordReset,
+  resetPasswordWithToken,
+  changePassword,
+  updateUserProfile,
+  deleteUserAccount,
+  revokeSession,
+  sanitizeUser,
+  checkRateLimit,
+} from "./server/authService";
+import {
+  requireAuth,
+  optionalAuth,
+  extractTokenFromRequest,
+  resolveAuthoritativeUserId,
+} from "./server/authMiddleware";
 
 
 // Singleton Gemini Client
@@ -385,6 +410,356 @@ async function startServer() {
       hasApiKey: Boolean(process.env.GEMINI_API_KEY),
       model: MODEL_CANDIDATES[0],
     });
+  });
+
+  // -------------------------------------------------------------
+  // AUTHENTICATION & USER ACCOUNT API ROUTES (Production-Secured)
+  // -------------------------------------------------------------
+
+  // Register with Email & Password
+  app.post("/api/auth/register", async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const clientIp = req.ip || "unknown_ip";
+      const rateCheck = checkRateLimit(`reg_${clientIp}`, 15, 60 * 60 * 1000);
+      if (!rateCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: `Too many registration attempts. Please try again in ${rateCheck.retryAfterSeconds} seconds.`,
+        });
+      }
+
+      const { email, password, fullName, displayName, ageConfirmed, termsAccepted, marketingConsent } = req.body || {};
+
+      const result = await registerUser({
+        email,
+        password,
+        fullName,
+        displayName,
+        ageConfirmed: Boolean(ageConfirmed),
+        termsAccepted: Boolean(termsAccepted),
+        marketingConsent: Boolean(marketingConsent),
+      });
+
+      res.setHeader(
+        "Set-Cookie",
+        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+      );
+
+      return res.status(201).json({
+        success: true,
+        user: result.user,
+        token: result.session.token,
+        message: "Account created successfully. A verification email has been generated.",
+      });
+    } catch (err: any) {
+      console.warn("[Auth API] Registration rejected:", err?.message || err);
+      return res.status(400).json({
+        success: false,
+        error: err.message || "Unable to complete registration. Please check your inputs.",
+      });
+    }
+  });
+
+  // Sign In with Email & Password
+  app.post("/api/auth/login", async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { email = "", password = "" } = req.body || {};
+      const clientIp = req.ip || "unknown_ip";
+      const rateCheck = checkRateLimit(`login_${clientIp}_${email.toLowerCase().trim()}`, 8, 15 * 60 * 1000);
+
+      if (!rateCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: `Too many login attempts. Please wait ${rateCheck.retryAfterSeconds} seconds before trying again.`,
+        });
+      }
+
+      const result = await loginUser(
+        email,
+        password,
+        req.ip,
+        req.get("user-agent")
+      );
+
+      res.setHeader(
+        "Set-Cookie",
+        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+      );
+
+      return res.json({
+        success: true,
+        user: result.user,
+        token: result.session.token,
+        message: "Signed in successfully.",
+      });
+    } catch (err: any) {
+      console.warn("[Auth API] Sign-in failed:", err?.message || err);
+      return res.status(401).json({
+        success: false,
+        error: err.message || "Invalid credentials. Please verify your email and password.",
+      });
+    }
+  });
+
+  // Google OAuth Sign-In & Registration
+  app.post("/api/auth/google", async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { credential, googleId: directGoogleId, email: directEmail, fullName: directName, profilePhotoUrl: directPhoto } = req.body || {};
+
+      let resolvedGoogleId = directGoogleId;
+      let resolvedEmail = directEmail;
+      let resolvedName = directName;
+      let resolvedPhoto = directPhoto;
+
+      // If official Google ID token was provided from Google Identity Services
+      if (credential && typeof credential === "string") {
+        try {
+          const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+          if (verifyRes.ok) {
+            const tokenData = await verifyRes.json();
+            if (tokenData && tokenData.sub && tokenData.email) {
+              resolvedGoogleId = tokenData.sub;
+              resolvedEmail = tokenData.email;
+              resolvedName = tokenData.name || tokenData.given_name || "Google User";
+              resolvedPhoto = tokenData.picture || null;
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("[Google OAuth] Remote token verification warning:", fetchErr);
+        }
+      }
+
+      if (!resolvedEmail || !resolvedGoogleId) {
+        return res.status(400).json({
+          success: false,
+          error: "Google authentication payload is invalid or could not be verified.",
+        });
+      }
+
+      const result = await authenticateWithGoogle({
+        googleId: resolvedGoogleId,
+        email: resolvedEmail,
+        fullName: resolvedName || "Google User",
+        profilePhotoUrl: resolvedPhoto,
+        emailVerified: true,
+      });
+
+      res.setHeader(
+        "Set-Cookie",
+        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+      );
+
+      return res.json({
+        success: true,
+        user: result.user,
+        token: result.session.token,
+        isNewUser: result.isNewUser,
+        message: result.isNewUser ? "Welcome to LexisAi! Account created with Google." : "Welcome back!",
+      });
+    } catch (err: any) {
+      console.error("[Google OAuth] Authentication error:", err);
+      return res.status(500).json({
+        success: false,
+        error: err.message || "Failed to authenticate with Google.",
+      });
+    }
+  });
+
+  // Sign Out
+  app.post("/api/auth/logout", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const token = extractTokenFromRequest(req);
+      if (token) {
+        revokeSession(token);
+      }
+      res.setHeader(
+        "Set-Cookie",
+        "lexis_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+      );
+      return res.json({ success: true, message: "Signed out successfully." });
+    } catch (err: any) {
+      return res.json({ success: true });
+    }
+  });
+
+  // Get Current Authenticated Profile
+  app.get("/api/auth/me", requireAuth, (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+    return res.json({
+      success: true,
+      user: sanitizeUser(req.user),
+    });
+  });
+
+  // Update Profile
+  app.patch("/api/auth/profile", requireAuth, (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const result = updateUserProfile(req.userId!, req.body || {});
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+      return res.json({ success: true, user: result.user, message: "Profile updated successfully." });
+    } catch (err: any) {
+      console.error("[Auth API] Profile update error:", err);
+      return res.status(500).json({ success: false, error: "Failed to update profile." });
+    }
+  });
+
+  // Change Password
+  app.post("/api/auth/change-password", requireAuth, (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { currentPassword, newPassword } = req.body || {};
+      const result = changePassword(req.userId!, currentPassword, newPassword);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+      return res.json({ success: true, message: "Password updated successfully." });
+    } catch (err: any) {
+      console.error("[Auth API] Change password error:", err);
+      return res.status(500).json({ success: false, error: "Failed to update password." });
+    }
+  });
+
+  // Email Verification
+  app.post("/api/auth/verify-email", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { token } = req.body || {};
+      const result = verifyUserEmail(token);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+      return res.json({ success: true, user: result.user, message: "Email successfully verified!" });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "Failed to verify email." });
+    }
+  });
+
+  // Resend Email Verification Token
+  app.post("/api/auth/resend-verification", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { email = "" } = req.body || {};
+      const clientIp = req.ip || "unknown_ip";
+      const rateCheck = checkRateLimit(`resend_${clientIp}_${email.toLowerCase().trim()}`, 3, 60 * 60 * 1000);
+      if (!rateCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${rateCheck.retryAfterSeconds} seconds before requesting another verification email.`,
+        });
+      }
+
+      const result = resendVerificationToken(email);
+      return res.json({
+        success: true,
+        message: "If an account exists with this email, a new verification link has been generated.",
+        // For development / testing in sandbox preview:
+        debugToken: process.env.NODE_ENV !== "production" ? result.token : undefined,
+      });
+    } catch (err: any) {
+      return res.json({ success: true, message: "If an account exists, a link has been sent." });
+    }
+  });
+
+  // Forgot Password (Request Reset)
+  app.post("/api/auth/forgot-password", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { email = "" } = req.body || {};
+      const clientIp = req.ip || "unknown_ip";
+      const rateCheck = checkRateLimit(`forgot_${clientIp}_${email.toLowerCase().trim()}`, 4, 60 * 60 * 1000);
+      if (!rateCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${rateCheck.retryAfterSeconds} seconds before submitting another request.`,
+        });
+      }
+
+      const result = requestPasswordReset(email);
+      // Anti-enumeration: always return generic positive response
+      return res.json({
+        success: true,
+        message: "If an account exists with this email, password reset instructions have been generated.",
+        debugToken: process.env.NODE_ENV !== "production" ? result.resetToken : undefined,
+      });
+    } catch (err: any) {
+      return res.json({
+        success: true,
+        message: "If an account exists with this email, password reset instructions have been generated.",
+      });
+    }
+  });
+
+  // Reset Password with Token
+  app.post("/api/auth/reset-password", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { token, newPassword } = req.body || {};
+      const result = resetPasswordWithToken(token, newPassword);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+      return res.json({
+        success: true,
+        message: "Your password has been reset successfully. Please sign in with your new password.",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "Failed to reset password." });
+    }
+  });
+
+  // Safely Claim Guest Workspaces to Authenticated Account
+  app.post("/api/auth/claim-workspaces", requireAuth, (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { guestId } = req.body || {};
+      if (!guestId || typeof guestId !== "string") {
+        return res.status(400).json({ success: false, error: "Guest identifier required." });
+      }
+      const migrated = claimGuestWorkspaces(guestId.trim(), req.userId!);
+      return res.json({ success: true, migratedCount: migrated });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "Failed to link guest workspaces." });
+    }
+  });
+
+  // Delete User Account (Permanent cascade deletion)
+  app.delete("/api/auth/account", requireAuth, (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const userId = req.userId!;
+      const result = deleteUserAccount(userId, req.body || {});
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+
+      // Cascade personal data deletion
+      purgeUserWorkspaces(userId);
+      purgeUserCredits(userId);
+      purgeUserSubscription(userId);
+
+      res.setHeader(
+        "Set-Cookie",
+        "lexis_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+      );
+
+      return res.json({
+        success: true,
+        message: "Your account, workspaces, documents, notes, chats, and personal data have been permanently deleted.",
+      });
+    } catch (err: any) {
+      console.error("[Auth API] Account deletion error:", err);
+      return res.status(500).json({ success: false, error: "Failed to complete account deletion." });
+    }
   });
 
   // Server-authoritative subscription verification endpoint
@@ -1023,10 +1398,10 @@ Format the output strictly as a JSON object with this shape:
   // -------------------------------------------------------------
 
   // List all workspaces for the authenticated user
-  app.get("/api/workspaces", (req, res) => {
+  app.get("/api/workspaces", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspaces = getUserWorkspaces(userId);
       return res.json({ success: true, workspaces });
     } catch (err: any) {
@@ -1036,10 +1411,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Create a new workspace
-  app.post("/api/workspaces", (req, res) => {
+  app.post("/api/workspaces", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const { name, description } = req.body || {};
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ success: false, error: "Workspace name is required." });
@@ -1053,10 +1428,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Get single workspace with documents, notes, and chat history
-  app.get("/api/workspaces/:id", (req, res) => {
+  app.get("/api/workspaces/:id", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspace = getWorkspace(userId, req.params.id);
       if (!workspace) {
         return res.status(404).json({ success: false, error: "Workspace not found or unauthorized access." });
@@ -1069,10 +1444,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Rename or update workspace description
-  app.patch("/api/workspaces/:id", (req, res) => {
+  app.patch("/api/workspaces/:id", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const { name, description } = req.body || {};
       const workspace = updateWorkspace(userId, req.params.id, { name, description });
       if (!workspace) {
@@ -1086,10 +1461,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Delete workspace
-  app.delete("/api/workspaces/:id", (req, res) => {
+  app.delete("/api/workspaces/:id", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const deleted = deleteWorkspace(userId, req.params.id);
       if (!deleted) {
         return res.status(404).json({ success: false, error: "Workspace not found or unauthorized access." });
@@ -1102,10 +1477,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Upload and process document in workspace
-  app.post("/api/workspaces/:id/documents", async (req, res) => {
+  app.post("/api/workspaces/:id/documents", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspace = getWorkspace(userId, req.params.id);
       if (!workspace) {
         return res.status(404).json({ success: false, error: "Workspace not found or unauthorized access." });
@@ -1207,10 +1582,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Remove document from workspace
-  app.delete("/api/workspaces/:id/documents/:docId", (req, res) => {
+  app.delete("/api/workspaces/:id/documents/:docId", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspace = removeDocumentFromWorkspace(userId, req.params.id, req.params.docId);
       if (!workspace) {
         return res.status(404).json({ success: false, error: "Document or workspace not found." });
@@ -1223,10 +1598,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Create note in workspace
-  app.post("/api/workspaces/:id/notes", (req, res) => {
+  app.post("/api/workspaces/:id/notes", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const { title, content } = req.body || {};
       const result = addNoteToWorkspace(userId, req.params.id, {
         title: title || "Untitled Note",
@@ -1243,10 +1618,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Update note in workspace
-  app.patch("/api/workspaces/:id/notes/:noteId", (req, res) => {
+  app.patch("/api/workspaces/:id/notes/:noteId", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const { title, content } = req.body || {};
       const result = updateNoteInWorkspace(userId, req.params.id, req.params.noteId, { title, content });
       if (!result) {
@@ -1260,10 +1635,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Delete note in workspace
-  app.delete("/api/workspaces/:id/notes/:noteId", (req, res) => {
+  app.delete("/api/workspaces/:id/notes/:noteId", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspace = deleteNoteFromWorkspace(userId, req.params.id, req.params.noteId);
       if (!workspace) {
         return res.status(404).json({ success: false, error: "Note or workspace not found." });
@@ -1276,10 +1651,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Clear chat history in workspace
-  app.post("/api/workspaces/:id/chat/clear", (req, res) => {
+  app.post("/api/workspaces/:id/chat/clear", requireAuth, (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspace = clearWorkspaceChatHistory(userId, req.params.id);
       if (!workspace) {
         return res.status(404).json({ success: false, error: "Workspace not found." });
@@ -1292,10 +1667,10 @@ Format the output strictly as a JSON object with this shape:
   });
 
   // Grounded Workspace AI Chat & Quick Actions
-  app.post("/api/workspaces/:id/chat", async (req, res) => {
+  app.post("/api/workspaces/:id/chat", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const userId = resolveUserIdFromRequest(req);
+      const userId = req.userId!;
       const workspace = getWorkspace(userId, req.params.id);
       if (!workspace) {
         return res.status(404).json({ success: false, error: "Workspace not found or unauthorized access." });

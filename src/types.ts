@@ -31,6 +31,7 @@ export type FormatType =
 
 export * from "./types/capabilities";
 export * from "./types/workspace";
+export * from "./types/auth";
 
 export interface Variation {
   title: string;

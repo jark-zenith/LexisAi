@@ -242,3 +242,13 @@ export function deductCredit(
     alreadyDeducted: false,
   };
 }
+
+/**
+ * Permanently purge credit balances for a deleted user
+ */
+export function purgeUserCredits(userId: string): void {
+  if (userCreditsMap.has(userId)) {
+    userCreditsMap.delete(userId);
+    saveCreditsToDisk();
+  }
+}

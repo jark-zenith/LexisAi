@@ -1,6 +1,22 @@
-import React from "react";
-import { Sparkles, History, HelpCircle, AlertCircle, Download, Zap, Coins, FolderKanban } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Sparkles,
+  History,
+  HelpCircle,
+  AlertCircle,
+  Download,
+  Zap,
+  Coins,
+  FolderKanban,
+  User as UserIcon,
+  LogIn,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  ChevronDown,
+} from "lucide-react";
 import { PlanType, FREE_ACTIONS_LIMIT, PRO_ACTIONS_LIMIT } from "../types";
+import { useAuth } from "../context/AuthContext";
 
 interface HeaderProps {
   historyCount: number;
@@ -33,10 +49,25 @@ export const Header: React.FC<HeaderProps> = ({
   canInstall,
   onInstall,
 }) => {
+  const { user, isAuthenticated, openAuthModal, openSettingsModal, openTermsModal, signOut } = useAuth();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
   const isPro = plan === PlanType.PRO;
   const limit = isPro ? PRO_ACTIONS_LIMIT : FREE_ACTIONS_LIMIT;
   const isLimitReached = usageCount >= limit;
   const remainingActions = Math.max(0, limit - usageCount);
+
+  // Close user dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <header
@@ -231,6 +262,111 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             )}
           </button>
+
+          {/* User Authentication Menu / Sign In Button */}
+          {isAuthenticated && user ? (
+            <div className="relative" ref={userMenuRef}>
+              <button
+                id="user-profile-menu-btn"
+                type="button"
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-all cursor-pointer"
+                title={`Signed in as ${user.displayName || user.fullName}`}
+              >
+                <div className="w-6 h-6 rounded-md bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold flex items-center justify-center text-[11px] shrink-0">
+                  {user.fullName ? user.fullName.charAt(0).toUpperCase() : "U"}
+                </div>
+                <span className="max-w-[100px] truncate hidden md:inline">
+                  {user.displayName || user.fullName.split(" ")[0]}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {/* User Dropdown Menu */}
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-1.5 w-56 rounded-xl bg-[#0e131f] border border-slate-800 shadow-2xl py-1.5 z-50 text-xs text-slate-300 animate-in fade-in slide-in-from-top-1">
+                  <div className="px-3.5 py-2 border-b border-slate-800/80">
+                    <p className="font-bold text-white truncate">{user.fullName}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600/10 text-blue-400 border border-blue-500/20">
+                        {isPro ? "Pro Member" : "Free Tier"}
+                      </span>
+                      {user.emailVerified && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/40 text-emerald-400 border border-emerald-500/30">
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        openSettingsModal();
+                      }}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800/70 hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Account Settings</span>
+                    </button>
+
+                    {onOpenWorkspace && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onOpenWorkspace();
+                        }}
+                        className="w-full px-3.5 py-2 text-left hover:bg-slate-800/70 hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <FolderKanban className="w-3.5 h-3.5 text-blue-400" />
+                        <span>My Workspaces</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        openTermsModal("terms");
+                      }}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800/70 hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Legal &amp; Privacy</span>
+                    </button>
+                  </div>
+
+                  <div className="border-t border-slate-800/80 pt-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsUserMenuOpen(false);
+                        await signOut();
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-red-400 hover:bg-red-950/30 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              id="header-signin-btn"
+              type="button"
+              onClick={() => openAuthModal("signin")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-sm shadow-blue-950/40 transition-all cursor-pointer active:scale-95"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

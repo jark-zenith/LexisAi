@@ -6,14 +6,14 @@ import {
   WorkspaceChatMessage,
 } from "../types";
 import { getOrCreateUserId } from "./usageManager";
+import { getAuthHeaders } from "./authClient";
 
 const getHeaders = (extra?: Record<string, string>): Record<string, string> => {
   const userId = getOrCreateUserId();
-  return {
-    "Content-Type": "application/json",
+  return getAuthHeaders({
     "X-Lexis-User-Id": userId,
     ...(extra || {}),
-  };
+  });
 };
 
 export async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {

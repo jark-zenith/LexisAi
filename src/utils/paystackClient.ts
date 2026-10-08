@@ -1,4 +1,5 @@
 import { getOrCreateUserId, syncServerSubscription } from "./usageManager";
+import { getAuthHeaders } from "./authClient";
 
 declare global {
   interface Window {
@@ -98,10 +99,9 @@ export async function initializeTransactionOnServer(
   const userId = getOrCreateUserId();
   const res = await fetch("/api/paystack/initialize", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+    headers: getAuthHeaders({
       "X-Lexis-User-Id": userId,
-    },
+    }),
     body: JSON.stringify({
       email,
       amount,
@@ -146,10 +146,9 @@ export async function verifyTransactionOnServer(reference: string): Promise<{
   const userId = getOrCreateUserId();
   const res = await fetch("/api/paystack/verify", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+    headers: getAuthHeaders({
       "X-Lexis-User-Id": userId,
-    },
+    }),
     body: JSON.stringify({ reference }),
   });
 

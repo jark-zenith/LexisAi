@@ -8,6 +8,7 @@ import {
   PlanAccessCheckResult,
   ServerSubscriptionRecord,
 } from "../types";
+import { getAuthHeaders } from "./authClient";
 
 const STORAGE_KEY_USAGE = "lexis_ai_usage";
 const STORAGE_KEY_CACHED_PROFILE = "lexis_ai_cached_profile";
@@ -99,9 +100,9 @@ export async function syncServerSubscription(): Promise<ServerSubscriptionRecord
   const userId = getOrCreateUserId();
   try {
     const response = await fetch("/api/subscription/status", {
-      headers: {
+      headers: getAuthHeaders({
         "X-Lexis-User-Id": userId,
-      },
+      }),
     });
 
     if (response.ok) {
@@ -225,9 +226,9 @@ export async function fetchServerCredits(): Promise<number> {
   const userId = getOrCreateUserId();
   try {
     const response = await fetch("/api/credits/balance", {
-      headers: {
+      headers: getAuthHeaders({
         "X-Lexis-User-Id": userId,
-      },
+      }),
     });
 
     if (response.ok) {
