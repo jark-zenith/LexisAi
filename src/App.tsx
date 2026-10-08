@@ -62,6 +62,10 @@ import { AuthModal } from "./components/auth/AuthModal";
 import { AccountSettingsModal } from "./components/auth/AccountSettingsModal";
 import { TermsModal } from "./components/auth/TermsModal";
 import { getAuthHeaders } from "./utils/authClient";
+import {
+  loadAutoSavedState,
+  saveDraftToStorage,
+} from "./utils/autoSaveManager";
 
 export default function App() {
   const { isAuthenticated, user, openAuthModal } = useAuth();
@@ -69,11 +73,14 @@ export default function App() {
   // Mode selection state
   const [currentMode, setCurrentMode] = useState<LexisMode>("transform");
 
-  // Core Writing States
-  const [inputText, setInputText] = useState<string>("");
-  const [action, setAction] = useState<ToolAction>("rewrite");
-  const [tone, setTone] = useState<ToneType | undefined>(undefined);
-  const [format, setFormat] = useState<FormatType>("general");
+  // Initial Auto-Saved Draft recovery from localStorage
+  const initialDraftRef = useRef(loadAutoSavedState());
+
+  // Core Writing States recovered from auto-save
+  const [inputText, setInputText] = useState<string>(() => initialDraftRef.current.inputText ?? "");
+  const [action, setAction] = useState<ToolAction>(() => initialDraftRef.current.action ?? "rewrite");
+  const [tone, setTone] = useState<ToneType | undefined>(() => initialDraftRef.current.tone ?? undefined);
+  const [format, setFormat] = useState<FormatType>(() => initialDraftRef.current.format ?? "general");
   const [customInstruction, setCustomInstruction] = useState<string>("");
   const [generateVariations, setGenerateVariations] = useState<boolean>(false);
 
@@ -145,6 +152,38 @@ export default function App() {
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
+
+  // Ref tracking current draft state for the auto-save loop
+  const currentDraftRef = useRef({ inputText, action, tone, format });
+  useEffect(() => {
+    currentDraftRef.current = { inputText, action, tone, format };
+  }, [inputText, action, tone, format]);
+
+  // Auto-save: persists inputText, action, tone, and format to localStorage every 5 seconds
+  useEffect(() => {
+    const saveCurrentDraft = () => {
+      saveDraftToStorage(currentDraftRef.current);
+    };
+
+    // Auto-save interval every 5 seconds (5000ms)
+    const intervalId = setInterval(saveCurrentDraft, 5000);
+
+    // Save on beforeunload so no progress is lost on accidental refresh or close
+    window.addEventListener("beforeunload", saveCurrentDraft);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("beforeunload", saveCurrentDraft);
+    };
+  }, []);
+
+  // Notify user if a previous unsaved draft was restored
+  useEffect(() => {
+    const recovered = initialDraftRef.current;
+    if (recovered.inputText && recovered.inputText.trim().length > 0) {
+      addToast("Restored your auto-saved draft from your previous session.", "info");
+    }
+  }, []);
 
   // Lexis Workspace States & Loader
   const [workspacesList, setWorkspacesList] = useState<WorkspaceSummary[]>([]);
@@ -615,6 +654,12 @@ export default function App() {
     setStreamingText("");
     setElapsedMs(0);
     setAttachedAsset(null);
+    saveDraftToStorage({
+      inputText: "",
+      action,
+      tone,
+      format,
+    });
   };
 
   const handleAssetSelect = (asset: PickedAsset) => {
@@ -1121,6 +1166,7 @@ export default function App() {
               addToast("Output loaded into editor for further editing", "info");
             }}
             onCopySuccess={() => addToast("Copied result to clipboard!", "success")}
+            onExportPdfSuccess={() => addToast("Exported AI result as formatted PDF document!", "success")}
             onNewTask={handleNewTask}
           />
         </div>

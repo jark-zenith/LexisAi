@@ -3,6 +3,7 @@ import {
   Copy,
   Check,
   Download,
+  FileDown,
   ArrowLeftRight,
   Layers,
   Sparkles,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { TransformationItem } from "../types";
 import { DiffViewer } from "./DiffViewer";
+import { exportResultAsPdf } from "../utils/pdfExport";
 
 interface OutputPanelProps {
   currentResult: TransformationItem | null;
@@ -31,6 +33,7 @@ interface OutputPanelProps {
   onUseAsInput: (text: string) => void;
   onCopySuccess: () => void;
   onNewTask: () => void;
+  onExportPdfSuccess?: () => void;
 }
 
 export const OutputPanel: React.FC<OutputPanelProps> = ({
@@ -43,12 +46,16 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   onUseAsInput,
   onCopySuccess,
   onNewTask,
+  onExportPdfSuccess,
 }) => {
   const [copied, setCopied] = useState(false);
   const [activeVariationIndex, setActiveVariationIndex] = useState(0);
   const [showDiff, setShowDiff] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState("");
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfExportSuccess, setPdfExportSuccess] = useState(false);
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null);
 
   const activeContent = currentResult
     ? isEditing
@@ -87,6 +94,44 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   const wordCount = activeContent.trim() ? activeContent.trim().split(/\s+/).filter(Boolean).length : 0;
   const charCount = activeContent.length;
   const readingTimeSeconds = Math.max(1, Math.round((wordCount / 200) * 60));
+
+  const handleExportPdf = async () => {
+    if (!activeContent || isExportingPdf) return;
+    setIsExportingPdf(true);
+    setPdfExportError(null);
+    try {
+      await exportResultAsPdf({
+        title: currentResult?.action
+          ? `LexisAi — ${
+              currentResult.action === "improve"
+                ? "Grammar & Polish"
+                : currentResult.action.charAt(0).toUpperCase() + currentResult.action.slice(1)
+            } Result`
+          : "LexisAi — Generated Result",
+        action: currentResult?.action,
+        tone: currentResult?.tone,
+        format: currentResult?.format,
+        mode: currentResult?.mode,
+        text: activeContent,
+        sources: currentResult?.sources,
+        notes: currentResult?.notes,
+        wordCount,
+        charCount,
+      });
+
+      setPdfExportSuccess(true);
+      if (onExportPdfSuccess) {
+        onExportPdfSuccess();
+      }
+      setTimeout(() => setPdfExportSuccess(false), 2500);
+    } catch (err: any) {
+      console.error("Failed to export PDF: ", err);
+      setPdfExportError(err?.message || "Failed to generate PDF. Please try again.");
+      setTimeout(() => setPdfExportError(null), 4000);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   const inputWordCount = currentResult?.inputText?.trim()
     ? currentResult.inputText.trim().split(/\s+/).filter(Boolean).length
@@ -186,7 +231,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                 <span className="hidden sm:inline">Use as Input</span>
               </button>
 
-              {/* Download Button */}
+              {/* Download as TXT Button */}
               <button
                 id="download-btn"
                 type="button"
@@ -195,6 +240,39 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                 title="Download as .txt"
               >
                 <Download className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Export as PDF Button */}
+              <button
+                id="export-pdf-btn"
+                type="button"
+                onClick={handleExportPdf}
+                disabled={isExportingPdf}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 sm:px-2.5 sm:py-1.5 min-h-[40px] sm:min-h-[36px] text-xs font-semibold rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                  pdfExportSuccess
+                    ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/40"
+                    : isExportingPdf
+                    ? "bg-slate-900 text-slate-400 border-slate-800 cursor-wait"
+                    : "bg-red-950/20 text-red-300 hover:text-white hover:bg-red-900/30 border-red-500/30"
+                }`}
+                title="Export formatted AI result as a downloadable PDF file"
+              >
+                {isExportingPdf ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-red-400" />
+                    <span className="hidden sm:inline">Exporting...</span>
+                  </>
+                ) : pdfExportSuccess ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Exported!</span>
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-3.5 h-3.5 text-red-400" />
+                    <span className="hidden sm:inline">Export PDF</span>
+                  </>
+                )}
               </button>
 
               {/* Primary Copy Result Button */}
@@ -490,8 +568,42 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
             )}
           </div>
 
-          {/* Prominent Copy Result Button in footer */}
+          {/* Prominent Actions in footer */}
           <div className="flex items-center gap-2">
+            {/* Quick Export PDF Button in Footer */}
+            <button
+              id="quick-export-pdf-footer-btn"
+              type="button"
+              onClick={handleExportPdf}
+              disabled={isExportingPdf}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[40px] sm:min-h-[36px] rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                pdfExportSuccess
+                  ? "text-emerald-400 bg-emerald-950/40 border border-emerald-500/30"
+                  : isExportingPdf
+                  ? "text-slate-400 bg-slate-900 border border-slate-800 cursor-wait"
+                  : "text-red-300 hover:text-white hover:bg-red-950/40 bg-red-950/20 border border-red-500/30"
+              }`}
+              title="Download result as PDF"
+            >
+              {isExportingPdf ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-red-400" />
+                  <span>Exporting...</span>
+                </>
+              ) : pdfExportSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>PDF Saved!</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="w-3.5 h-3.5 text-red-400" />
+                  <span>Export PDF</span>
+                </>
+              )}
+            </button>
+
+            {/* Quick Copy Result Button in footer */}
             <button
               id="quick-copy-footer-btn"
               type="button"
@@ -515,6 +627,23 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
               )}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* PDF Export Error Banner (if any) */}
+      {pdfExportError && (
+        <div className="px-4 py-2 bg-red-950/60 border-t border-red-500/30 flex items-center justify-between text-xs text-red-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{pdfExportError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPdfExportError(null)}
+            className="text-red-400 hover:text-white font-medium ml-2 cursor-pointer"
+          >
+            Dismiss
+          </button>
         </div>
       )}
     </div>

@@ -112,5 +112,27 @@
     "documents": [],
     "notes": [],
     "chatHistory": []
+  },
+  {
+    "id": "ws_1791497090180_qlaf3qt",
+    "userId": "usr_1791497090004_a9c5398d2dca",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791497090180,
+    "updatedAt": 1791497090180,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
+  },
+  {
+    "id": "ws_1791497716105_5lonsuo",
+    "userId": "usr_1791497715928_1027a00b31c1",
+    "name": "Bob Personal Workspace",
+    "description": "Bob private project",
+    "createdAt": 1791497716105,
+    "updatedAt": 1791497716105,
+    "documents": [],
+    "notes": [],
+    "chatHistory": []
   }
 ]

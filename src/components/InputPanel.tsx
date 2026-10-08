@@ -321,9 +321,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           />
         </div>
 
-        {/* Word / Char Counter */}
+        {/* Word / Char Counter & Auto-save Status */}
         <div className="flex items-center justify-between text-xs text-slate-500 mt-2 px-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <span>
               <strong className="text-slate-300 font-medium">{wordCount}</strong> words
             </span>
@@ -331,6 +331,18 @@ export const InputPanel: React.FC<InputPanelProps> = ({
             <span>
               <strong className="text-slate-300 font-medium">{charCount}</strong> characters
             </span>
+            {inputText.trim().length > 0 && (
+              <>
+                <span className="text-slate-700">•</span>
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400/90 font-medium select-none"
+                  title="Auto-saving to localStorage every 5 seconds"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Auto-saved
+                </span>
+              </>
+            )}
           </div>
           <span className="text-[11px] text-slate-500 hidden sm:inline">
             Press <kbd className="px-1 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-[10px] text-slate-300">⌘</kbd> + <kbd className="px-1 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-[10px] text-slate-300">Enter</kbd> to run
