@@ -228,6 +228,27 @@ export function runMigrations(): void {
 
     console.log("[Database] Migration 1 applied successfully.");
   }
+
+  // Migration 2: authoritative AI usage counters. No user foreign key is used so
+  // guest identities can also be rate-limited.
+  if (!appliedVersions.has(2)) {
+    console.log("[Database] Applying Migration 2: Server-Side AI Usage...");
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_usage (
+        user_id TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        usage_count INTEGER NOT NULL DEFAULT 0 CHECK (usage_count >= 0),
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, period_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_usage_period ON ai_usage(period_key);
+    `);
+    db.prepare(`
+      INSERT INTO schema_migrations (version, name, applied_at)
+      VALUES (?, ?, ?);
+    `).run(2, "002_server_side_ai_usage", Date.now());
+    console.log("[Database] Migration 2 applied successfully.");
+  }
 }
 
 /**
