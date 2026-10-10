@@ -20,8 +20,10 @@ import { createServer as createViteServer } from "vite";
 import {
   verifyServerSubscription,
   verifyActionPermission,
+  releaseActionUsage,
   resolveUserIdFromRequest,
 } from "./server/subscriptionService";
+import { verifyGoogleIdToken } from "./server/googleAuthService";
 import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
@@ -503,47 +505,39 @@ async function startServer() {
     }
   });
 
-  // Google OAuth Sign-In & Registration
+  // Google OAuth Sign-In & Registration. Never accept identity claims from the client.
   app.post("/api/auth/google", async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
-      const { credential, googleId: directGoogleId, email: directEmail, fullName: directName, profilePhotoUrl: directPhoto } = req.body || {};
-
-      let resolvedGoogleId = directGoogleId;
-      let resolvedEmail = directEmail;
-      let resolvedName = directName;
-      let resolvedPhoto = directPhoto;
-
-      // If official Google ID token was provided from Google Identity Services
-      if (credential && typeof credential === "string") {
-        try {
-          const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
-          if (verifyRes.ok) {
-            const tokenData = await verifyRes.json();
-            if (tokenData && tokenData.sub && tokenData.email) {
-              resolvedGoogleId = tokenData.sub;
-              resolvedEmail = tokenData.email;
-              resolvedName = tokenData.name || tokenData.given_name || "Google User";
-              resolvedPhoto = tokenData.picture || null;
-            }
-          }
-        } catch (fetchErr) {
-          console.warn("[Google OAuth] Remote token verification warning:", fetchErr);
-        }
-      }
-
-      if (!resolvedEmail || !resolvedGoogleId) {
+      const { credential } = req.body || {};
+      if (typeof credential !== "string" || !credential.trim()) {
         return res.status(400).json({
           success: false,
-          error: "Google authentication payload is invalid or could not be verified.",
+          error: "A valid Google ID token is required.",
+        });
+      }
+
+      const expectedClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
+      if (!expectedClientId) {
+        return res.status(503).json({
+          success: false,
+          error: "Google sign-in is not configured on the server.",
+        });
+      }
+
+      const identity = await verifyGoogleIdToken(credential, expectedClientId);
+      if (!identity) {
+        return res.status(401).json({
+          success: false,
+          error: "Google authentication could not be verified. Please sign in again.",
         });
       }
 
       const result = await authenticateWithGoogle({
-        googleId: resolvedGoogleId,
-        email: resolvedEmail,
-        fullName: resolvedName || "Google User",
-        profilePhotoUrl: resolvedPhoto,
+        googleId: identity.googleId,
+        email: identity.email,
+        fullName: identity.fullName,
+        profilePhotoUrl: identity.profilePhotoUrl,
         emailVerified: true,
       });
 
@@ -563,7 +557,7 @@ async function startServer() {
       console.error("[Google OAuth] Authentication error:", err);
       return res.status(500).json({
         success: false,
-        error: err.message || "Failed to authenticate with Google.",
+        error: "Failed to authenticate with Google.",
       });
     }
   });
@@ -931,6 +925,13 @@ async function startServer() {
 
   // Text transformation API endpoint (with SSE streaming support and in-memory cache)
   app.post("/api/transform", async (req, res) => {
+    let usageReservation: { userId: string; periodKey: string } | null = null;
+    const releaseUsageReservation = () => {
+      if (usageReservation) {
+        releaseActionUsage(usageReservation.userId, usageReservation.periodKey);
+        usageReservation = null;
+      }
+    };
     try {
       const {
         text = "",
@@ -940,7 +941,6 @@ async function startServer() {
         customInstruction = "",
         generateVariations = false,
         stream = false,
-        usageCount = 0,
         requestId = "",
         mode = "transform",
         writingContext,
@@ -964,8 +964,7 @@ async function startServer() {
 
       // Server-authoritative plan, usage, and credits gatekeeper
       const userId = resolveUserIdFromRequest(req);
-      const parsedUsage = typeof usageCount === "number" ? usageCount : 0;
-      const permission = verifyActionPermission(userId, parsedUsage);
+      const permission = verifyActionPermission(userId);
 
       if (!permission.allowed) {
         return res.status(403).json({
@@ -977,6 +976,9 @@ async function startServer() {
           credits: permission.credits,
           actionSource: permission.actionSource,
         });
+      }
+      if (permission.usagePeriodKey) {
+        usageReservation = { userId, periodKey: permission.usagePeriodKey };
       }
 
       const handleActionCompletion = () => {
@@ -1063,8 +1065,10 @@ async function startServer() {
               ...payloadWithCredits,
             })}\n\n`
           );
+          usageReservation = null;
           return res.end();
         }
+        usageReservation = null;
         return res.json(payloadWithCredits);
       }
 
@@ -1136,6 +1140,7 @@ Format the output strictly as a JSON object with this shape:
         }
         queryCache.set(cacheKey, { data: responsePayload, timestamp: Date.now() });
 
+        usageReservation = null;
         return res.json(responsePayload);
       }
 
@@ -1196,8 +1201,10 @@ Format the output strictly as a JSON object with this shape:
               ...finalPayload,
             })}\n\n`
           );
+          usageReservation = null;
           return res.end();
         } catch (streamErr: any) {
+          releaseUsageReservation();
           if (clientAbort.signal.aborted) {
             return res.end();
           }
@@ -1290,9 +1297,11 @@ Format the output strictly as a JSON object with this shape:
         }
         queryCache.set(cacheKey, { data: finalPayload, timestamp: Date.now() });
 
+        usageReservation = null;
         return res.json(finalPayload);
       }
     } catch (error: any) {
+      releaseUsageReservation();
       console.error("AI Transform Error:", error);
       const friendlyMessage = extractReadableErrorMessage(error);
       if (res.headersSent) {
@@ -1669,6 +1678,13 @@ Format the output strictly as a JSON object with this shape:
   // Grounded Workspace AI Chat & Quick Actions
   app.post("/api/workspaces/:id/chat", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "application/json");
+    let usageReservation: { userId: string; periodKey: string } | null = null;
+    const releaseUsageReservation = () => {
+      if (usageReservation) {
+        releaseActionUsage(usageReservation.userId, usageReservation.periodKey);
+        usageReservation = null;
+      }
+    };
     try {
       const userId = req.userId!;
       const workspace = getWorkspace(userId, req.params.id);
@@ -1681,7 +1697,6 @@ Format the output strictly as a JSON object with this shape:
         action = "",
         selectedDocumentIds,
         selectedNoteIds,
-        usageCount = 0,
         requestId = "",
       } = req.body || {};
 
@@ -1690,8 +1705,7 @@ Format the output strictly as a JSON object with this shape:
       }
 
       // Check centralized plan and credit limits
-      const parsedUsage = typeof usageCount === "number" ? usageCount : 0;
-      const permission = verifyActionPermission(userId, parsedUsage);
+      const permission = verifyActionPermission(userId);
 
       if (!permission.allowed) {
         return res.status(403).json({
@@ -1704,6 +1718,9 @@ Format the output strictly as a JSON object with this shape:
           credits: permission.credits,
           actionSource: permission.actionSource,
         });
+      }
+      if (permission.usagePeriodKey) {
+        usageReservation = { userId, periodKey: permission.usagePeriodKey };
       }
 
       // Filter context based on user selection
@@ -1872,6 +1889,7 @@ CRITICAL ANTI-FABRICATION & GROUNDING RULES:
       appendChatMessageToWorkspace(userId, req.params.id, userMsg);
       const updatedWs = appendChatMessageToWorkspace(userId, req.params.id, assistantMsg);
 
+      usageReservation = null;
       return res.json({
         success: true,
         message: assistantMsg,
@@ -1881,6 +1899,7 @@ CRITICAL ANTI-FABRICATION & GROUNDING RULES:
         actionSource: permission.actionSource,
       });
     } catch (err: any) {
+      releaseUsageReservation();
       console.error("Workspace chat error:", err);
       return res.status(500).json({
         success: false,
