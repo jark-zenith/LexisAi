@@ -5,7 +5,7 @@ import {
   ServerSubscriptionRecord,
   CREDIT_PACKAGES,
 } from "../src/types";
-import { activateProSubscription, verifyServerSubscription } from "./subscriptionService";
+import { activateProSubscriptionFromPayment, verifyServerSubscription } from "./subscriptionService";
 import { addCredits, getUserCredits } from "./creditService";
 
 /**
@@ -286,7 +286,17 @@ export async function verifyPaystackTransaction(
       };
     }
 
-    // Verify transaction status is strictly "success"
+    // The provider's verified reference must be exactly the reference we requested.
+    if (data.data.reference !== reference.trim()) {
+      return {
+        success: false,
+        isPro: false,
+        error: "Paystack returned a different transaction reference.",
+        paystackData: data.data,
+      };
+    }
+
+    // Verify transaction status is strictly "success".
     if (data.data.status !== "success") {
       return {
         success: false,
@@ -296,8 +306,8 @@ export async function verifyPaystackTransaction(
       };
     }
 
-    // Verify currency is KES
-    if (data.data.currency && data.data.currency.toUpperCase() !== "KES") {
+    // Currency must be explicitly KES; missing currency is not accepted.
+    if (!data.data.currency || data.data.currency.toUpperCase() !== "KES") {
       return {
         success: false,
         isPro: false,
@@ -379,23 +389,30 @@ export async function verifyPaystackTransaction(
       };
     }
 
-    // Activate Pro status on the authoritative server store for 30 days
+    // Persist the verified transaction and subscription atomically. A repeated
+    // verification returns the existing state and never moves the expiry date.
     const customerCode = data.data.customer?.customer_code || String(data.data.customer?.id || "paystack_cust");
-    const record = activateProSubscription(targetUserId, {
+    const activation = activateProSubscriptionFromPayment(targetUserId, {
       paymentProvider: "paystack",
       providerCustomerId: customerCode,
       providerSubscriptionId: data.data.reference,
       durationDays: 30,
+      transactionReference: data.data.reference,
+      amount: data.data.amount,
+      currency: data.data.currency,
     });
+    const record = activation.record;
 
-    console.log(`[Paystack Success] Activated Pro subscription for user '${targetUserId}' via reference '${reference}'`);
+    console.log(`[Paystack Success] ${activation.alreadyProcessed ? "Payment already processed" : "Activated Pro subscription"} for user '${targetUserId}' via reference '${reference}'`);
 
     return {
       success: true,
       paymentType: "subscription",
-      isPro: true,
+      isPro: Boolean(record.isPro),
       record,
-      message: "Payment verified successfully! Welcome to LexisAi Pro.",
+      message: activation.alreadyProcessed
+        ? "This payment was already processed. No additional subscription time was added."
+        : "Payment verified successfully! Welcome to LexisAi Pro.",
       paystackData: {
         id: data.data.id,
         reference: data.data.reference,

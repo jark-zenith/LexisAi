@@ -28,13 +28,7 @@ interface AuthContextType {
   isLoading: boolean;
   signIn: (payload: LoginPayload) => Promise<void>;
   signUp: (payload: RegisterPayload) => Promise<void>;
-  signInWithGoogle: (payload: {
-    credential?: string;
-    googleId?: string;
-    email?: string;
-    fullName?: string;
-    profilePhotoUrl?: string;
-  }) => Promise<void>;
+  signInWithGoogle: (payload: { credential: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateProfile: (updates: UpdateProfilePayload) => Promise<UserProfile>;
@@ -134,13 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   };
 
-  const signInWithGoogle = async (payload: {
-    credential?: string;
-    googleId?: string;
-    email?: string;
-    fullName?: string;
-    profilePhotoUrl?: string;
-  }) => {
+  const signInWithGoogle = async (payload: { credential: string }) => {
     const res = await googleAuthApi(payload);
     setUser(res.user);
     try {

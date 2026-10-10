@@ -91,11 +91,7 @@ export async function loginApi(payload: LoginPayload): Promise<{ user: UserProfi
 }
 
 export async function googleAuthApi(payload: {
-  credential?: string;
-  googleId?: string;
-  email?: string;
-  fullName?: string;
-  profilePhotoUrl?: string;
+  credential: string;
 }): Promise<{ user: UserProfile; token: string; isNewUser?: boolean }> {
   const res = await fetch("/api/auth/google", {
     method: "POST",

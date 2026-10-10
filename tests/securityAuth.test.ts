@@ -1,7 +1,7 @@
 /**
  * LEXISAI AUTOMATED AUTHENTICATION & DATA SECURITY TEST SUITE
  *
- * Verifies all 12 security requirements:
+ * Verifies the core security requirements and backend security regressions:
  * 1. Successful registration and sign-in.
  * 2. Invalid credentials, weak password, duplicate email rejection.
  * 3. Email verification and password recovery flows.
@@ -53,9 +53,11 @@ import {
 import {
   verifyServerSubscription,
   activateProSubscription,
+  activateProSubscriptionFromPayment,
   verifyActionPermission,
   purgeUserSubscription,
 } from "../server/subscriptionService";
+import { validateGoogleTokenInfo } from "../server/googleAuthService";
 
 // Helper assert function
 function assert(condition: boolean, message: string) {
@@ -70,10 +72,10 @@ async function runSecurityTests() {
   console.log("==========================================================\n");
 
   let passedTests = 0;
-  const totalTests = 12;
+  const totalTests = 15;
 
   // TEST 1: Password Strength & Validation Rules
-  console.log("▶ [Test 1/12] Validating password strength and validation feedback...");
+  console.log("▶ [Test 1/15] Validating password strength and validation feedback...");
   const weakPass1 = validatePasswordStrength("short");
   assert(!weakPass1.valid, "Weak password 'short' must be rejected");
   const weakPass2 = validatePasswordStrength("onlylowercaseletters");
@@ -84,7 +86,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 2: Successful Registration & Anti-Duplicate Handling
-  console.log("\n▶ [Test 2/12] Testing registration, hashing & duplicate account rejection...");
+  console.log("\n▶ [Test 2/15] Testing registration, hashing & duplicate account rejection...");
   const testEmailA = `test.user.a.${Date.now()}@example.com`;
   const testPassA = "SecureLexisA123!";
   
@@ -119,7 +121,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 3: User Sign-In & Invalid Credential Handling
-  console.log("\n▶ [Test 3/12] Testing sign-in with valid and invalid credentials...");
+  console.log("\n▶ [Test 3/15] Testing sign-in with valid and invalid credentials...");
   // Invalid password
   let badLoginCaught = false;
   try {
@@ -140,7 +142,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 4: Email Verification Flow
-  console.log("\n▶ [Test 4/12] Testing email verification & resend flow...");
+  console.log("\n▶ [Test 4/15] Testing email verification & resend flow...");
   const resend = resendVerificationToken(testEmailA);
   assert(resend.success && Boolean(resend.token), "Resend verification must succeed");
   
@@ -155,7 +157,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 5: Password Recovery & Token Expiry Flow
-  console.log("\n▶ [Test 5/12] Testing forgot password and reset token flow...");
+  console.log("\n▶ [Test 5/15] Testing forgot password and reset token flow...");
   const resetReq = requestPasswordReset(testEmailA);
   assert(resetReq.success && Boolean(resetReq.resetToken), "Password reset request must generate secure token");
 
@@ -180,7 +182,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 6: User B Setup & Unauthenticated Token Rejection
-  console.log("\n▶ [Test 6/12] Testing unauthenticated access rejection via requireAuth middleware...");
+  console.log("\n▶ [Test 6/15] Testing unauthenticated access rejection via requireAuth middleware...");
   const fakeTokenUser = resolveUserFromToken("completely_invalid_session_token_xyz");
   assert(fakeTokenUser === null, "Invalid session token must resolve to null");
 
@@ -224,7 +226,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 7: Cross-Account Workspace Isolation (User B cannot read User A's workspace)
-  console.log("\n▶ [Test 7/12] Testing workspace cross-account isolation (User A vs User B)...");
+  console.log("\n▶ [Test 7/15] Testing workspace cross-account isolation (User A vs User B)...");
   const wsA = createWorkspace(regA.user.id, {
     name: "Alice Confidential Research",
     description: "Private financial and proprietary data",
@@ -247,7 +249,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 8: Document Cross-Account Isolation
-  console.log("\n▶ [Test 8/12] Testing document upload & isolation across users...");
+  console.log("\n▶ [Test 8/15] Testing document upload & isolation across users...");
   const docResult = addDocumentToWorkspace(regA.user.id, wsA.id, {
     name: "Alice_Confidential_Brief.pdf",
     size: 1024,
@@ -274,7 +276,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 9: Notes & Chat History Isolation
-  console.log("\n▶ [Test 9/12] Testing notes and chat message isolation...");
+  console.log("\n▶ [Test 9/15] Testing notes and chat message isolation...");
   const noteResult = addNoteToWorkspace(regA.user.id, wsA.id, {
     title: "Alice Private Strategy",
     content: "Key roadmap milestones for Q4.",
@@ -312,7 +314,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 10: Credits & Subscription Cross-Account Protection
-  console.log("\n▶ [Test 10/12] Testing subscription and credits cross-account isolation...");
+  console.log("\n▶ [Test 10/15] Testing subscription and credits cross-account isolation...");
   // Add 100 credits to User A with unique test transaction reference
   const aliceTxRef = `tx_test_alice_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   addCredits(regA.user.id, 100, aliceTxRef);
@@ -343,7 +345,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 11: Profile Update & Password Change Permissions
-  console.log("\n▶ [Test 11/12] Testing profile updates and authorized password change...");
+  console.log("\n▶ [Test 11/15] Testing profile updates and authorized password change...");
   const updatedA = updateUserProfile(regA.user.id, {
     displayName: "Alice In Wonderland",
     region: "Kenya",
@@ -360,7 +362,7 @@ async function runSecurityTests() {
   passedTests++;
 
   // TEST 12: Cascading Account Deletion & Data Purge
-  console.log("\n▶ [Test 12/12] Testing cascading account deletion without affecting other users...");
+  console.log("\n▶ [Test 12/15] Testing cascading account deletion without affecting other users...");
   // Setup User B with a workspace
   const wsB = createWorkspace(regB.user.id, {
     name: "Bob Personal Workspace",
@@ -392,6 +394,80 @@ async function runSecurityTests() {
   assert(wsBAfterAliceDelete !== null, "SECURITY VERIFIED: User B workspace must NOT be affected by User A deletion");
   assert(getUserCredits(regB.user.id) === 50, "SECURITY VERIFIED: User B credits must remain intact");
   console.log("  ✔ Cascading deletion purged User A's data while leaving User B's data completely intact.");
+  passedTests++;
+
+  // TEST 13: Google ID-token claim validation (no client-supplied identity fallback)
+  console.log("\n▶ [Test 13/15] Testing strict Google ID-token claim validation...");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const validGoogleClaims = {
+    iss: "https://accounts.google.com",
+    aud: "lexis-test-client-id",
+    sub: "google-subject-123",
+    email: "verified.google.user@example.com",
+    email_verified: "true",
+    exp: String(nowSeconds + 600),
+    name: "Verified Google User",
+    picture: "https://example.com/profile.png",
+  };
+  const validatedIdentity = validateGoogleTokenInfo(validGoogleClaims, "lexis-test-client-id", nowSeconds);
+  assert(validatedIdentity?.googleId === "google-subject-123", "Valid Google claims must return the verified subject");
+  assert(validatedIdentity?.email === "verified.google.user@example.com", "Valid Google claims must return the verified email");
+  assert(validateGoogleTokenInfo({ ...validGoogleClaims, aud: "attacker-client-id" }, "lexis-test-client-id", nowSeconds) === null, "Wrong audience must be rejected");
+  assert(validateGoogleTokenInfo({ ...validGoogleClaims, email_verified: "false" }, "lexis-test-client-id", nowSeconds) === null, "Unverified Google email must be rejected");
+  assert(validateGoogleTokenInfo({ ...validGoogleClaims, iss: "https://attacker.example" }, "lexis-test-client-id", nowSeconds) === null, "Wrong issuer must be rejected");
+  assert(validateGoogleTokenInfo({ ...validGoogleClaims, exp: String(nowSeconds - 1) }, "lexis-test-client-id", nowSeconds) === null, "Expired Google ID token must be rejected");
+  console.log("  ✔ Google identity is accepted only when issuer, audience, expiry, subject, and email verification checks pass.");
+  passedTests++;
+
+  // TEST 14: Server-side daily AI quota ignores client-reported usage
+  console.log("\n▶ [Test 14/15] Testing server-authoritative usage limits...");
+  const quotaEmail = `quota.user.${Date.now()}@example.com`;
+  const quotaUser = await registerUser({
+    email: quotaEmail,
+    password: "SecureLexisC789!",
+    fullName: "Quota Test User",
+    ageConfirmed: true,
+    termsAccepted: true,
+  });
+  for (let actionIndex = 0; actionIndex < 5; actionIndex++) {
+    const permission = verifyActionPermission(quotaUser.user.id, 0);
+    assert(permission.allowed, `Free action ${actionIndex + 1} must be allowed even when the client reports zero usage`);
+    assert(permission.actionSource === "free", "Free allowance must be tracked on the server");
+    assert(permission.remaining === 4 - actionIndex, "Remaining allowance must come from the server counter");
+  }
+  const exhaustedPermission = verifyActionPermission(quotaUser.user.id, 0);
+  assert(!exhaustedPermission.allowed, "Sixth free action must be rejected even when client repeatedly reports zero usage");
+  assert(exhaustedPermission.remaining === 0, "Exhausted server-side quota must report zero remaining actions");
+  console.log("  ✔ Repeated requests with client usageCount=0 cannot bypass the five-action daily allowance.");
+  passedTests++;
+
+  // TEST 15: A Paystack subscription transaction reference can activate Pro only once
+  console.log("\n▶ [Test 15/15] Testing Paystack subscription replay protection...");
+  const paymentReference = `tx_security_sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const paymentOptions = {
+    paymentProvider: "paystack" as const,
+    providerCustomerId: "cus_security_test",
+    providerSubscriptionId: paymentReference,
+    durationDays: 30,
+    transactionReference: paymentReference,
+    amount: 100000,
+    currency: "KES",
+  };
+  const firstActivation = activateProSubscriptionFromPayment(regB.user.id, paymentOptions);
+  assert(!firstActivation.alreadyProcessed, "First verified transaction must be processed once");
+  assert(firstActivation.record.isPro, "First verified transaction must activate Pro");
+  const firstExpiry = firstActivation.record.subscriptionExpiryDate;
+  const repeatedActivation = activateProSubscriptionFromPayment(regB.user.id, paymentOptions);
+  assert(repeatedActivation.alreadyProcessed, "Repeated transaction reference must be marked already processed");
+  assert(repeatedActivation.record.subscriptionExpiryDate === firstExpiry, "Re-verifying one payment must not extend the original expiry");
+  let crossAccountReplayRejected = false;
+  try {
+    activateProSubscriptionFromPayment(quotaUser.user.id, paymentOptions);
+  } catch {
+    crossAccountReplayRejected = true;
+  }
+  assert(crossAccountReplayRejected, "A processed payment reference must not activate another account");
+  console.log("  ✔ Subscription payment reference is persisted atomically and cannot be replayed to extend Pro or activate another account.");
   passedTests++;
 
   console.log("\n==========================================================");
