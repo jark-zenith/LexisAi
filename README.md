@@ -235,11 +235,19 @@ Create `.env` from `.env.example`:
 GEMINI_API_KEY="your-gemini-api-key"
 APP_URL="https://your-domain.com"
 
+# Google Identity Services (set both to the same OAuth Web client ID)
+# VITE_GOOGLE_CLIENT_ID must be present during the frontend build.
+VITE_GOOGLE_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+# GOOGLE_CLIENT_ID must also be present in the server runtime environment.
+GOOGLE_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+
 # Optional (for Pro subscriptions)
 VITE_PAYSTACK_PUBLIC_KEY="pk_live_..."
 PAYSTACK_SECRET_KEY="sk_live_..."
 PAYSTACK_CURRENCY="KES"
 ```
+
+For Google sign-in, create a Web OAuth client in Google Cloud Console and add each deployed website origin (for example, `http://localhost:3000` and your production HTTPS origin) to its **Authorized JavaScript origins**. Use the same client ID in both environment variables above. Never use a placeholder client ID in production.
 
 ### Adding New Features
 
