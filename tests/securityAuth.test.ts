@@ -1,7 +1,7 @@
 /**
  * LEXISAI AUTOMATED AUTHENTICATION & DATA SECURITY TEST SUITE
  *
- * Verifies all 12 security requirements:
+ * Verifies the core security requirements and backend security regressions:
  * 1. Successful registration and sign-in.
  * 2. Invalid credentials, weak password, duplicate email rejection.
  * 3. Email verification and password recovery flows.
