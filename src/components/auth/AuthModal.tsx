@@ -21,6 +21,56 @@ import {
   resetPasswordApi,
 } from "../../utils/authClient";
 
+const GOOGLE_IDENTITY_SCRIPT_URL = "https://accounts.google.com/gsi/client";
+
+function loadGoogleIdentityServices(): Promise<any> {
+  const googleWindow = window as any;
+  if (googleWindow.google?.accounts?.id) {
+    return Promise.resolve(googleWindow.google);
+  }
+
+  let script = document.querySelector<HTMLScriptElement>(
+    'script[data-google-identity-services="true"]'
+  );
+  const shouldAppend = !script;
+
+  if (!script) {
+    script = document.createElement("script");
+    script.src = GOOGLE_IDENTITY_SCRIPT_URL;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentityServices = "true";
+  }
+
+  return new Promise((resolve, reject) => {
+    script!.addEventListener(
+      "load",
+      () => {
+        const loadedGoogle = (window as any).google;
+        if (loadedGoogle?.accounts?.id) {
+          resolve(loadedGoogle);
+        } else {
+          reject(new Error("Google sign-in could not initialize. Please refresh and try again."));
+        }
+      },
+      { once: true }
+    );
+
+    script!.addEventListener(
+      "error",
+      () => {
+        script?.remove();
+        reject(new Error("Could not load Google's sign-in service. Check your connection and try again."));
+      },
+      { once: true }
+    );
+
+    if (shouldAppend) {
+      document.head.appendChild(script!);
+    }
+  });
+}
+
 export const AuthModal: React.FC = () => {
   const {
     isAuthModalOpen,
@@ -168,34 +218,58 @@ export const AuthModal: React.FC = () => {
 
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
+    if (!clientId) {
+      setErrorMessage(
+        "Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID for the frontend and GOOGLE_CLIENT_ID for the server."
+      );
+      return;
+    }
+
     try {
       setIsLoading(true);
+      const google = await loadGoogleIdentityServices();
 
-      // Check if Google GIS is available in window
-      if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.initialize({
-          client_id: (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) || "1234567890-example.apps.googleusercontent.com",
-          callback: async (response: any) => {
-            if (response.credential) {
-              await signInWithGoogle({ credential: response.credential });
-              closeAuthModal();
-            }
-          },
-        });
-        (window as any).google.accounts.id.prompt();
-      } else {
-        // Fallback demo/sandbox Google OAuth simulation using user's real or prompt email
-        const userPromptEmail = email.trim() || "user.google@lexisai.dev";
-        await signInWithGoogle({
-          googleId: "google_" + Date.now(),
-          email: userPromptEmail,
-          fullName: fullName.trim() || "Google User",
-        });
-        closeAuthModal();
-      }
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: { credential?: string }) => {
+          if (typeof response?.credential !== "string" || !response.credential.trim()) {
+            setErrorMessage("Google did not return a valid ID token. Please try again.");
+            setIsLoading(false);
+            return;
+          }
+
+          try {
+            await signInWithGoogle({ credential: response.credential });
+            closeAuthModal();
+          } catch (err: any) {
+            setErrorMessage(err.message || "Google authentication failed. Please try again.");
+          } finally {
+            setIsLoading(false);
+          }
+        },
+        cancel_on_tap_outside: true,
+      });
+
+      google.accounts.id.prompt((notification: any) => {
+        if (
+          notification?.isNotDisplayed?.() ||
+          notification?.isSkippedMoment?.() ||
+          notification?.isDismissedMoment?.()
+        ) {
+          const reason = notification.getNotDisplayedReason?.();
+          setErrorMessage(
+            reason === "browser_not_supported"
+              ? "Google sign-in is not supported in this browser. Try a different browser."
+              : "Google sign-in could not open. Check the OAuth client ID and the authorized JavaScript origins in Google Cloud Console."
+          );
+          setIsLoading(false);
+        }
+      });
     } catch (err: any) {
-      setErrorMessage(err.message || "Google authentication encountered an error.");
-    } finally {
+      setErrorMessage(err.message || "Could not start Google sign-in. Please try again.");
       setIsLoading(false);
     }
   };
