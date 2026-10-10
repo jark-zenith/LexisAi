@@ -58,8 +58,9 @@ export function resolveUserIdFromRequest(req: any): string {
   }
 
   // Fallback to client IP or default guest identity for public playground only
-  const forwarded = req.headers?.["x-forwarded-for"];
-  const ip = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket?.remoteAddress;
+  // Never trust a caller-supplied X-Forwarded-For header directly. Express's req.ip
+  // is based on socket.remoteAddress unless a trusted proxy is explicitly configured.
+  const ip = typeof req.ip === "string" ? req.ip : req.socket?.remoteAddress;
   return ip ? `guest_${Buffer.from(ip).toString("hex").slice(0, 10)}` : "guest_user";
 }
 
