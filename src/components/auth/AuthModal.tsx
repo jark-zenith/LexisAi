@@ -457,7 +457,7 @@ export const AuthModal: React.FC = () => {
             <div className="space-y-3">
               <div
                 ref={googleButtonRef}
-                className="w-full min-h-[40px] flex items-center justify-center"
+                className={`w-full min-h-[40px] flex items-center justify-center ${isLoading ? "pointer-events-none opacity-50" : ""}`}
                 aria-label={authModalTab === "signup" ? "Sign up with Google" : "Sign in with Google"}
               />
 
