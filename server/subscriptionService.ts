@@ -3,7 +3,7 @@ import {
   SubscriptionStatus,
   PaymentProvider,
   ServerSubscriptionRecord,
-  FREE_ACTIONS_LIMIT,
+  FREE_DAILY_ACTIONS_LIMIT,
   PRO_ACTIONS_LIMIT,
 } from "../src/types";
 import { getUserCredits } from "./creditService";
