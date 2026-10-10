@@ -200,7 +200,7 @@ export const AuthModal: React.FC = () => {
     };
   }, [isAuthModalOpen, authModalTab]);
 
-
+  if (!isAuthModalOpen) return null;
 
   // Real-time password strength calculation
   const calculateStrength = (pass: string) => {
