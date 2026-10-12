@@ -19,6 +19,7 @@
 import {
   registerUser,
   loginUser,
+  authenticateWithGoogle,
   verifyUserEmail,
   resendVerificationToken,
   requestPasswordReset,
@@ -122,6 +123,18 @@ async function runSecurityTests() {
 
   // TEST 3: User Sign-In & Invalid Credential Handling
   console.log("\n▶ [Test 3/15] Testing sign-in with valid and invalid credentials...");
+  // Google sign-in for the same verified email must link to the existing account,
+  // preserve its ID, and create a session that resolves to that same account.
+  const googleLinked = await authenticateWithGoogle({
+    googleId: `google-test-${Date.now()}`,
+    email: testEmailA,
+    fullName: "Alice User",
+    emailVerified: true,
+  });
+  assert(googleLinked.user.id === regA.user.id, "Google sign-in must reuse the existing account for the same verified email");
+  assert(googleLinked.user.authProvider === "both", "Linked local + Google account must report provider 'both'");
+  assert(resolveUserFromToken(googleLinked.session.token)?.id === regA.user.id, "Google sign-in must issue a valid server-side session");
+
   // Invalid password
   let badLoginCaught = false;
   try {
