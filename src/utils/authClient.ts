@@ -144,7 +144,9 @@ export async function fetchCurrentUserApi(): Promise<UserProfile | null> {
     }
     return null;
   } catch {
-    return getStoredUser();
+    // Do not present cached profile data as authenticated when the server cannot validate the session.
+    // Keep the token so a transient network failure does not destroy the session permanently.
+    return null;
   }
 }
 
