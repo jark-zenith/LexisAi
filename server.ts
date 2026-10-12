@@ -445,7 +445,7 @@ async function startServer() {
 
       res.setHeader(
         "Set-Cookie",
-        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${process.env.NODE_ENV === "production" ? "; Secure" : ""}`
       );
 
       return res.status(201).json({
@@ -487,7 +487,7 @@ async function startServer() {
 
       res.setHeader(
         "Set-Cookie",
-        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${process.env.NODE_ENV === "production" ? "; Secure" : ""}`
       );
 
       return res.json({
@@ -543,7 +543,7 @@ async function startServer() {
 
       res.setHeader(
         "Set-Cookie",
-        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+        `lexis_session=${encodeURIComponent(result.session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${process.env.NODE_ENV === "production" ? "; Secure" : ""}`
       );
 
       return res.json({
@@ -572,7 +572,7 @@ async function startServer() {
       }
       res.setHeader(
         "Set-Cookie",
-        "lexis_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+        `lexis_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`
       );
       return res.json({ success: true, message: "Signed out successfully." });
     } catch (err: any) {
